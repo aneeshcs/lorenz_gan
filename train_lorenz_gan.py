@@ -5,7 +5,7 @@ from keras.optimizers import Adam
 import numpy as np
 import yaml
 import argparse
-from os.path import exists
+from os.path import exists, join
 from os import mkdir
 
 
@@ -48,6 +48,12 @@ def train_lorenz_gan(config, combined_data):
                               axis=-1)
     X_norm, X_scaling_values = normalize_data(X_series)
     Y_norm, Y_scaling_values = normalize_data(Y_series)
+    X_scaling_values.to_csv(join(config["gan"]["gan_path"],
+                                 "gan_X_scaling_values_{0:04d}.csv".format(config["gan"]["gan_index"])),
+                            index_label="Channel")
+    Y_scaling_values.to_csv(join(config["gan"]["gan_path"],
+                                 "gan_Y_scaling_values_{0:04d}.csv".format(config["gan"]["gan_index"])),
+                            index_label="Channel")
     trim = X_norm.shape[0] % config["gan"]["batch_size"]
     if config["gan"]["structure"] == "dense":
         gen_model = generator_dense(**config["gan"]["generator"])
@@ -56,8 +62,12 @@ def train_lorenz_gan(config, combined_data):
         gen_model = generator_conv(**config["gan"]["generator"])
         disc_model = discriminator_conv(**config["gan"]["discriminator"])
     optimizer = Adam(lr=0.0001, beta_1=0.5)
-    gen_disc = initialize_gan(gen_model, disc_model, optimizer, config["gan"]["metrics"])
-    train_gan(Y_norm[:-trim], X_norm[:-trim], gen_model, disc_model, gen_disc, config["gan"]["batch_size"],
+    loss = config["gan"]["loss"]
+    gen_disc = initialize_gan(gen_model, disc_model, loss, optimizer, config["gan"]["metrics"])
+    if trim > 0:
+        Y_norm = Y_norm[:-trim]
+        X_norm = X_norm[:-trim]
+    train_gan(Y_norm, X_norm, gen_model, disc_model, gen_disc, config["gan"]["batch_size"],
               config["gan"]["generator"]["num_random_inputs"], config["gan"]["gan_path"],
               config["gan"]["gan_index"], config["gan"]["num_epochs"], config["gan"]["metrics"],
               Y_scaling_values, X_scaling_values)
